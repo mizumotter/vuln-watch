@@ -10,7 +10,7 @@ const S = {
   follows: new Set(load('follows', [])),
   read: new Set(load('read', [])),
   f: { days: 30, cvss: 0, epss: 0, kev: false, unread: false, product: '', sort: 'priority', ...load('filters', {}) },
-  tab: 'feed', catalog: [], meta: null, items: [], kev: [], limit: 50, error: '',
+  tab: 'feed', catalog: [], meta: null, items: [], kev: [], limit: 50, error: '', failed: [],
 };
 if (!S.follows.size) S.tab = 'settings';
 
@@ -20,6 +20,7 @@ const TXT = {
     updated: (d) => `データ更新: ${d}`, feed: 'フィード', kevTab: '悪用確認 (KEV)', settings: 'フォロー設定',
     sourceDown: (s) => `一部のデータ元の取得に失敗しています（${s}）。表示は前回取得分です。`,
     loadError: 'データを読み込めませんでした。時間をおいて再読み込みしてください。',
+    productDown: (s) => `一部の製品のデータを読み込めませんでした（${s}）。自動で再試行します。`,
     days: '期間', d7: '7日', d30: '30日', d90: '90日', dAll: 'すべて', anyScore: '指定なし',
     product: '製品', allProducts: 'すべて', kevOnly: 'KEVのみ', unreadOnly: '未読のみ',
     sort: '並び順', sPriority: '優先度（KEV→EPSS→CVSS）', sNew: '新しい順（同じ日は深刻度順）',
@@ -50,6 +51,7 @@ const TXT = {
     updated: (d) => `Data updated: ${d}`, feed: 'Feed', kevTab: 'Exploited (KEV)', settings: 'Follow settings',
     sourceDown: (s) => `Some sources failed to update (${s}). Showing the previous data for them.`,
     loadError: 'Could not load the data. Please reload in a while.',
+    productDown: (s) => `Could not load the data for some products (${s}). Retrying automatically.`,
     days: 'Period', d7: '7 days', d30: '30 days', d90: '90 days', dAll: 'All', anyScore: 'Any',
     product: 'Product', allProducts: 'All', kevOnly: 'KEV only', unreadOnly: 'Unread only',
     sort: 'Sort', sPriority: 'Priority (KEV → EPSS → CVSS)', sNew: 'Newest (by severity within a day)',
@@ -90,21 +92,37 @@ async function getJson(path) {
   if (!r.ok) throw new Error(`${path} ${r.status}`);
   return r.json();
 }
-async function loadFeed() {
+const cache = new Map(); // product id -> items from its last successful fetch
+const stale = new Set(); // product ids whose last fetch failed
+let feedGen = 0;
+async function loadFeed(refresh) {
+  const gen = ++feedGen;
   const ids = [...S.follows].filter((id) => S.catalog.some((c) => c.id === id));
-  const lists = await Promise.all(ids.map((id) => getJson(`data/products/${id}.json`).catch(() => [])));
+  await Promise.all(ids.map(async (id) => {
+    if (!refresh && cache.has(id) && !stale.has(id)) return;
+    try {
+      cache.set(id, await getJson(`data/products/${id}.json`));
+      stale.delete(id);
+    } catch (e) {
+      // Keep the previous data for this product and retry on the next check.
+      console.error(e);
+      stale.add(id);
+    }
+  }));
+  if (gen !== feedGen) return; // a newer call owns the result
   const map = new Map();
-  for (const list of lists) for (const it of list) map.set(it.id, it);
+  for (const id of ids) for (const it of cache.get(id) || []) map.set(it.id, it);
   S.items = [...map.values()];
+  S.failed = ids.filter((id) => stale.has(id));
 }
 async function loadAll() {
   try {
     [S.meta, S.catalog, S.kev] = await Promise.all([getJson('data/meta.json'), getJson('data/catalog.json'), getJson('data/kev.json')]);
-    await loadFeed();
+    await loadFeed(true);
     S.error = '';
   } catch (e) {
     console.error(e);
-    S.error = t('loadError');
+    if (!S.meta) S.error = t('loadError'); // keep showing what is already loaded
   }
   render();
 }
@@ -113,6 +131,7 @@ async function checkUpdate() {
   try {
     const meta = await getJson('data/meta.json');
     if (meta.generatedAt !== S.meta?.generatedAt) await loadAll();
+    else if (S.failed.length) { await loadFeed(); render(); }
   } catch { /* offline: keep what we have */ }
 }
 
@@ -258,6 +277,7 @@ function render() {
 <button class="btn" data-act="lang" aria-label="Switch language">${S.lang === 'ja' ? 'English' : '日本語'}</button></header>
 <p class="note lead">${t('tagline')}</p>
 ${failed.length ? `<div class="banner">${esc(t('sourceDown', failed.join(', ')))}</div>` : ''}
+${S.failed.length ? `<div class="banner">${esc(t('productDown', S.failed.map(prodName).join(', ')))}</div>` : ''}
 <nav class="tabs" role="tablist">${tab('feed', t('feed'), unread)}${tab('kev', t('kevTab'))}${tab('settings', t('settings'), S.follows.size)}</nav>
 <main>${view}</main>
 <footer>${t('footer').map((l) => `<p>${esc(l)}</p>`).join('')}</footer></div>`;

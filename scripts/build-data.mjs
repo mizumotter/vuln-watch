@@ -151,13 +151,19 @@ function upsertNvd(db, cve) {
     const k = `${d.vendor} | ${d.product}`; seenNames.set(k, (seenNames.get(k) || 0) + 1);
   }
   const old = db.recs[cve.id];
-  if (cve.vulnStatus === 'Rejected' || Date.parse(cve.published + 'Z') < cutoff) {
+  if (Date.parse(cve.published + 'Z') < cutoff) {
     if (old) { old.nvdP = []; }
+    return;
+  }
+  if (cve.vulnStatus === 'Rejected') {
+    // Keep a tombstone so a lingering OSV alias cannot bring the CVE back.
+    db.recs[cve.id] = { ...(old || { id: cve.id, osvP: [], fix: [] }), pub: cve.published + 'Z', nvdP: [], rejected: true };
     return;
   }
   const m = matchNvd(cve);
   if (!m.ids.length && !old) return;
   const rec = old || { id: cve.id, osvP: [], fix: [] };
+  delete rec.rejected;
   Object.assign(rec, {
     pub: cve.published + 'Z',
     mod: cve.lastModified + 'Z',
@@ -352,7 +358,7 @@ async function phase(name, fn) {
 await phase('nvd', () => runNvd(db));
 await phase('osv', () => runOsv(db));
 for (const [id, rec] of Object.entries(db.recs)) {
-  const dead = !(rec.nvdP?.length || rec.osvP?.length) || !(Date.parse(rec.pub) >= cutoff);
+  const dead = !(rec.rejected || rec.nvdP?.length || rec.osvP?.length) || !(Date.parse(rec.pub) >= cutoff);
   if (dead) delete db.recs[id];
 }
 const kevList = (await phase('kev', () => runKev(db))) || db.kevList || [];
@@ -360,7 +366,7 @@ db.kevList = kevList;
 await phase('epss', () => runEpss(db, kevList));
 await phase('jvn', () => runJvn(db));
 
-const recs = Object.values(db.recs);
+const recs = Object.values(db.recs).filter((r) => !r.rejected);
 if (!recs.length && !sources.nvd.ok) { console.error('nothing to publish'); process.exit(1); }
 
 const publicRec = (r) => ({

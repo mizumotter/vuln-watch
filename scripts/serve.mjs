@@ -10,7 +10,13 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 const port = Number(process.env.PORT) || 4180;
 
 createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+  let path;
+  try {
+    path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+  } catch {
+    res.writeHead(400).end('Bad request');
+    return;
+  }
   const file = join(root, path.endsWith('/') ? path + 'index.html' : path);
   if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
   try {
@@ -19,4 +25,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end('Not found');
   }
-}).listen(port, () => console.log(`http://localhost:${port}`));
+}).listen(port, '127.0.0.1', () => console.log(`http://localhost:${port}`));

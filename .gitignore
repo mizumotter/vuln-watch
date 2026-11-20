@@ -4,3 +4,4 @@ public/data/
 .wrangler/
 .dev.vars
 cache.log
+.DS_Store
