@@ -276,7 +276,10 @@ function cardBody(it) {
     h.push('</div>');
   }
   if (ex.conditions.length) {
-    h.push(`<h4>${t('conditions')}</h4><ul>${ex.conditions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`);
+    h.push(`<h4>${t('conditions')}</h4><ul class="conds">${ex.conditions.map((c) => {
+      const i = c.indexOf(': ');
+      return i < 0 ? `<li>${esc(c)}</li>` : `<li><b>${esc(c.slice(0, i))}</b>: ${esc(c.slice(i + 2))}</li>`;
+    }).join('')}</ul>`);
   }
   if (ex.effects.length) {
     h.push(`<h4>${t('effects')}</h4><div class="pills">${ex.effects.map(([l, v, code]) => `<span class="pill l-${esc(code)}">${esc(l)}: ${esc(v)}</span>`).join('')}</div>`);
