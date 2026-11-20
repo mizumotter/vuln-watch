@@ -1,7 +1,7 @@
 :root {
   --bg: #f5f6f8; --card: #fff; --text: #1a1d21; --muted: #5d6877; --line: #dce1e8; --accent: #2456d6;
   --chip: #eef1f5; --crit: #b3261e; --high: #b8530a; --med: #7d6400; --low: #2c7a4b; --kev: #8c1d18;
-  --on-accent: #fff; --bolt: #d99a00; --flash: rgba(217, 154, 0, 0.10);
+  --on-accent: #fff; --bolt: #e09a00; --bolt-core: #b97a00; --flash: rgba(224, 154, 0, 0.22);
   color-scheme: light;
 }
 /* Dark values: used when the OS prefers dark (unless the user picked light) or when the user picked dark. */
@@ -9,14 +9,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0f1216; --card: #181c22; --text: #e6e9ee; --muted: #9aa5b4; --line: #2a313b; --accent: #7aa2ff;
     --chip: #222831; --crit: #ff7469; --high: #ff9d4d; --med: #e0b93b; --low: #6fcf97; --kev: #c62f28;
-    --on-accent: #0f1216; --bolt: #ffe27a; --flash: rgba(190, 210, 255, 0.07);
+    --on-accent: #0f1216; --bolt: #ffd84d; --bolt-core: #fffbe6; --flash: rgba(200, 215, 255, 0.20);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1216; --card: #181c22; --text: #e6e9ee; --muted: #9aa5b4; --line: #2a313b; --accent: #7aa2ff;
   --chip: #222831; --crit: #ff7469; --high: #ff9d4d; --med: #e0b93b; --low: #6fcf97; --kev: #c62f28;
-  --on-accent: #0f1216; --bolt: #ffe27a; --flash: rgba(190, 210, 255, 0.07);
+  --on-accent: #0f1216; --bolt: #ffd84d; --bolt-core: #fffbe6; --flash: rgba(200, 215, 255, 0.20);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -26,17 +26,30 @@ body {
 }
 a { color: var(--accent); }
 button, select, input { font: inherit; color: inherit; }
-.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px 48px; position: relative; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px 48px; position: relative; z-index: 1; }
 
-/* Lightning: two bolts strike behind the header every few seconds, with a faint flash of the sky. */
-.sky { position: absolute; inset: 0 0 auto 0; height: 240px; overflow: hidden; pointer-events: none; }
-.sky::before { content: ""; position: absolute; inset: 0; background: linear-gradient(var(--flash), transparent); opacity: 0; animation: strike 11s infinite; }
-.strike { position: absolute; top: 0; width: 110px; height: 230px; opacity: 0; fill: none; stroke: var(--bolt); stroke-width: 2.5; stroke-linejoin: bevel; filter: drop-shadow(0 0 6px var(--bolt)); animation: strike 11s infinite; }
-.strike.s1 { right: 12%; }
-.strike.s2 { left: 8%; height: 170px; animation-delay: 4.3s; }
+/* Lightning: bolts strike across the whole viewport behind the content, and the sky flashes with each one. */
+.sky { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.sky::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0, var(--flash), transparent 75%); opacity: 0; animation: flash 6.5s infinite; }
+.strike {
+  position: absolute; top: 0; width: 170px; height: 72vh; opacity: 0; fill: none;
+  stroke: var(--bolt-core); stroke-width: 3.5; stroke-linejoin: bevel; stroke-linecap: round;
+  filter: drop-shadow(0 0 4px var(--bolt)) drop-shadow(0 0 14px var(--bolt)) drop-shadow(0 0 34px var(--bolt));
+  animation: strike 6.5s infinite;
+}
+.strike polyline + polyline { stroke-width: 2; }
+.strike.s1 { right: 9%; }
+.strike.s2 { left: 6%; height: 58vh; animation-delay: 2.1s; }
+.strike.s3 { left: 44%; height: 86vh; width: 200px; animation-delay: 4.2s; }
+.strike.s4 { right: 30%; height: 46vh; width: 130px; animation-delay: 5.3s; }
 @keyframes strike {
-  0%, 86%, 100% { opacity: 0; }
-  87% { opacity: 0.9; } 88% { opacity: 0.15; } 89.5% { opacity: 1; } 91% { opacity: 0.35; } 93% { opacity: 0.6; } 96% { opacity: 0; }
+  0%, 84%, 100% { opacity: 0; }
+  85% { opacity: 1; } 86% { opacity: 0.1; } 87.5% { opacity: 1; } 89% { opacity: 0.3; } 90.5% { opacity: 0.95; } 92% { opacity: 0.2; } 95% { opacity: 0; }
+}
+/* One sky flash per bolt (same offsets as the four strikes). */
+@keyframes flash {
+  0%, 16%, 21%, 49%, 54%, 66%, 70%, 84%, 95%, 100% { opacity: 0; }
+  17.5%, 50.5%, 67%, 85%, 87.5% { opacity: 1; } 19%, 52%, 86%, 89% { opacity: 0.25; } 90.5% { opacity: 0.8; }
 }
 .bolt { width: 0.8em; height: 0.8em; margin-right: 5px; vertical-align: -0.06em; fill: var(--bolt); animation: flicker 11s infinite; }
 @keyframes flicker {
@@ -120,6 +133,19 @@ nav.tabs .n { font-size: 12px; background: var(--chip); border-radius: 10px; pad
 .head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 13px; color: var(--muted); }
 .head .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); font-weight: 600; }
 .head .prod { background: var(--chip); border-radius: 4px; padding: 0 6px; color: var(--text); }
+/* Product names lead the card; the colour is stable per product. */
+.prods { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.pname { font-size: 15px; font-weight: 700; line-height: 1.4; border-radius: 6px; padding: 2px 10px; color: #fff; background: hsl(var(--h, 215) 55% 38%); }
+.pname.other { background: var(--chip); color: var(--muted); font-weight: 600; font-size: 13px; }
+.pc-0 { --h: 0; } .pc-1 { --h: 15; } .pc-2 { --h: 30; } .pc-3 { --h: 45; } .pc-4 { --h: 60; } .pc-5 { --h: 75; }
+.pc-6 { --h: 90; } .pc-7 { --h: 105; } .pc-8 { --h: 120; } .pc-9 { --h: 135; } .pc-10 { --h: 150; } .pc-11 { --h: 165; }
+.pc-12 { --h: 180; } .pc-13 { --h: 195; } .pc-14 { --h: 210; } .pc-15 { --h: 225; } .pc-16 { --h: 240; } .pc-17 { --h: 255; }
+.pc-18 { --h: 270; } .pc-19 { --h: 285; } .pc-20 { --h: 300; } .pc-21 { --h: 315; } .pc-22 { --h: 330; } .pc-23 { --h: 345; }
+.howto { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 14px; }
+.howto > summary { cursor: pointer; padding: 8px 14px; font-weight: 600; }
+.howto ol { margin: 0; padding: 0 14px 4px 34px; }
+.howto li { margin-bottom: 4px; }
+.howto .privacy { margin: 6px 14px 12px; padding: 8px 12px; border-radius: 8px; background: var(--chip); font-size: 13px; }
 .card .title { margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card.unread .title { font-weight: 600; }
 .card.unread .id::before { content: "●"; color: var(--accent); margin-right: 5px; font-size: 10px; vertical-align: 2px; }

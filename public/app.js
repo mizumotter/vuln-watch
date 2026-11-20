@@ -11,7 +11,7 @@ const S = {
   follows: new Set(load('follows', [])),
   read: new Set(load('read', [])),
   f: { days: 30, cvss: 0, epss: 0, kev: false, unread: false, product: '', sort: 'priority', ...load('filters', {}) },
-  tab: 'feed', catalog: [], meta: null, items: [], kev: [], limit: 50, error: '', failed: [], onlySel: false,
+  tab: 'feed', catalog: [], meta: null, items: [], kev: [], limit: 50, error: '', failed: [], onlySel: false, howto: null,
 };
 if (!S.follows.size) S.tab = 'settings';
 
@@ -38,6 +38,13 @@ const TXT = {
       ['悪用確認済み（KEV）', '米国 CISA が、実際の攻撃で悪用されたと確認した脆弱性の一覧です。掲載されたものは優先して対応します。'],
     ],
     toLight: 'ライト表示', toDark: 'ダーク表示',
+    howto: '使い方',
+    howtoSteps: [
+      '「フォロー設定」で、使っている言語・サーバ・フレームワークなどを選びます。',
+      '「フィード」に、選んだ製品の脆弱性が深刻度と悪用予測つきで並びます。カードを開くと、攻撃手法・想定される被害・修正版を確認できます。',
+      '開いたカードは既読になります。データは定期的に（約30分ごと）自動で更新されます。',
+    ],
+    privacy: 'フォロー設定・既読・表示の設定は、すべてこのブラウザの中だけに保存されます。アカウント登録は不要で、サーバ側のデータベースには何も保存していません。そのため、別のブラウザや端末には設定が引き継がれません。',
     mtButton: '日本語に翻訳', mtHint: '初回は翻訳データをダウンロードします。翻訳はブラウザ内で行われ、外部には送信されません。',
     mtBusy: (p) => (p == null ? '翻訳中…' : `翻訳データをダウンロード中… ${p}%`),
     mtNote: 'ブラウザの機能による機械翻訳です。正確な内容は原文で確認してください。', mtFail: '翻訳できませんでした。',
@@ -83,6 +90,13 @@ const TXT = {
       ['Known exploited (KEV)', 'The CISA list of flaws confirmed to be exploited in real attacks. Listed flaws should be handled first.'],
     ],
     toLight: 'Light mode', toDark: 'Dark mode',
+    howto: 'How to use',
+    howtoSteps: [
+      'Under "Follow settings", pick the languages, servers and frameworks you run.',
+      'The "Feed" lists their vulnerabilities with severity and exploit prediction. Open a card for the attack technique, the impact and the fixed versions.',
+      'Opened cards are marked as read. The data refreshes automatically, about every 30 minutes.',
+    ],
+    privacy: 'Your follows, read marks and display settings are stored only inside this browser. There is no account, and nothing is stored in a server-side database, so your settings do not carry over to another browser or device.',
     mtButton: '', mtHint: '', mtBusy: () => '', mtNote: '', mtFail: '',
     onlySel: 'Selected only', catSel: (n, total) => `${n} of ${total} selected`, countLabel: 'Entries',
     kevLead: 'Latest vulnerabilities that CISA confirmed as exploited in the wild (all products, regardless of what you follow).',
@@ -112,6 +126,11 @@ const SEV_SCORE = { CRITICAL: 9.5, HIGH: 8, MEDIUM: 5.5, LOW: 2 };
 const score = (it) => it.cvss?.s ?? SEV_SCORE[it.cvss?.sev] ?? 0;
 const fmtDate = (iso) => String(iso || '').slice(0, 10);
 const prodName = (id) => S.catalog.find((c) => c.id === id)?.name || id;
+// Colour class per product: catalog order spread over 24 hues, so neighbours differ (inline styles are blocked by the CSP).
+const prodClass = (key) => {
+  const i = S.catalog.findIndex((c) => c.id === key);
+  return `pc-${(i >= 0 ? i * 7 : [...String(key)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)) % 24}`;
+};
 
 // ---------- data ----------
 async function getJson(path) {
@@ -289,13 +308,17 @@ function card(it) {
   const ja = S.lang === 'ja' ? it.ja : null;
   const en = it.en || '';
   const title = ja?.t || it.t || (en.length > 150 ? en.slice(0, 150).replace(/\s+\S*$/, '') + '…' : en);
-  const prods = it.vp ? `<span class="prod">${esc(it.vp)}</span>` : (it.p || []).map((id) => `<span class="prod">${esc(prodName(id))}</span>`).join('');
+  // Followed products first and prominent; other matched products stay muted.
+  const ids = [...(it.p || [])].sort((a, b) => S.follows.has(b) - S.follows.has(a));
+  const prods = it.vp ? `<span class="pname ${prodClass(it.vp)}">${esc(it.vp)}</span>`
+    : ids.map((id) => `<span class="pname ${S.follows.has(id) ? prodClass(id) : 'other'}">${esc(prodName(id))}</span>`).join('');
   // KEV-tab records only carry the date they were added to KEV.
   const dates = it.vp ? `<time>${t('kevDate')} ${esc(fmtDate(it.kev?.a || it.pub))}</time>`
     : `<time>${t('pubDate')} ${esc(fmtDate(it.pub))}</time>${it.kev ? `<time>${t('kevDate')} ${esc(fmtDate(it.kev.a))}</time>` : ''}`;
   return `<details class="card s-${esc(it.cvss?.sev || '')}${S.read.has(it.id) ? '' : ' unread'}" data-id="${esc(it.id)}">
-<summary><div class="badges">${badges(it)}</div>
-<div class="head"><span class="id">${esc(it.id)}</span>${prods}${dates}</div>
+<summary><div class="prods">${prods}</div>
+<div class="badges">${badges(it)}</div>
+<div class="head"><span class="id">${esc(it.id)}</span>${dates}</div>
 <div class="title">${esc(title)}</div></summary>
 <div class="body" data-body></div></details>`;
 }
@@ -402,6 +425,8 @@ function render() {
 <button class="btn" data-act="theme">${S.theme === 'dark' ? `☀ ${t('toLight')}` : `☾ ${t('toDark')}`}</button>
 <button class="btn" data-act="lang" aria-label="Switch language">${S.lang === 'ja' ? 'English' : '日本語'}</button></header>
 <p class="note lead">${t('tagline')}</p>
+<details class="howto"${(S.howto ?? !S.follows.size) ? ' open' : ''}><summary>${t('howto')}</summary>
+<ol>${t('howtoSteps').map((l) => `<li>${esc(l)}</li>`).join('')}</ol><p class="privacy">${esc(t('privacy'))}</p></details>
 ${failed.length ? `<div class="banner">${esc(t('sourceDown', failed.join(', ')))}</div>` : ''}
 ${S.failed.length ? `<div class="banner">${esc(t('productDown', S.failed.map(prodName).join(', ')))}</div>` : ''}
 <nav class="tabs" role="tablist">${tab('feed', t('feed'), unread)}${tab('kev', t('kevTab'))}${tab('settings', t('settings'), S.follows.size)}</nav>
@@ -418,6 +443,9 @@ function markRead(ids) {
 const findItem = (id) => S.items.find((it) => it.id === id) || S.kev.find((it) => it.id === id);
 
 app.addEventListener('click', (e) => {
+  // Remember a manual open/close of the how-to box (the click runs before the state flips).
+  const howto = e.target.closest('.howto > summary');
+  if (howto) S.howto = !howto.parentElement.open;
   const tabBtn = e.target.closest('[data-tab]');
   if (tabBtn) { S.tab = tabBtn.dataset.tab; S.limit = 50; render(); return; }
   const act = e.target.closest('[data-act]')?.dataset.act;
