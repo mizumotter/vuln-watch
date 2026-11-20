@@ -181,6 +181,8 @@ details.orig summary { cursor: pointer; }
 .empty { text-align: center; color: var(--muted); padding: 40px 0; }
 .empty p { margin: 0 0 10px; }
 .actions { margin: 16px 0 0; text-align: right; }
+.body h3.general { margin: 22px 0 2px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; }
+.readnote { margin: 10px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--chip); }
 .mt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 
 .setbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--muted); }

@@ -13,6 +13,7 @@ const S = {
   f: { days: 30, cvss: 0, epss: 0, kev: false, unread: false, products: [], sort: 'priority', ...load('filters', {}) },
   fx: load('fx', true),
   tab: 'feed', catalog: [], meta: null, items: [], kev: [], limit: 50, error: '', failed: [], onlySel: false, howto: null,
+  keep: new Set(), // "unread only": ids read in this view, kept in the list until their card is closed
 };
 if (!Array.isArray(S.f.products)) S.f.products = [];
 if (!S.follows.size) S.tab = 'settings';
@@ -40,6 +41,9 @@ const TXT = {
       ['悪用確認済み（KEV）', '米国 CISA が、実際の攻撃で悪用されたと確認した脆弱性の一覧です。掲載されたものは優先して対応します。'],
     ],
     toLight: 'ライト表示', toDark: 'ダーク表示', fxOff: '雷をオフ', fxOn: '雷をオン',
+    general: '一般的な解説', generalNote: 'ここから下は、CWE（脆弱性の種類）と CVSS に基づく一般的な説明です。この脆弱性に固有の確定情報は、上の概要と一次情報で確認してください。',
+    readNote: 'このカードは既読になりました。閉じると一覧から外れます。',
+    noMatch: '該当する製品はありません。', clearSearch: '検索をクリア', noSel: '選択中の製品はありません。', showAll: 'すべて表示',
     howto: '使い方', source: 'ソースコード（GitHub・MIT ライセンス）',
     howtoSteps: [
       '「フォロー設定」で、使っている言語・サーバ・フレームワークなどを選びます。',
@@ -92,6 +96,9 @@ const TXT = {
       ['Known exploited (KEV)', 'The CISA list of flaws confirmed to be exploited in real attacks. Listed flaws should be handled first.'],
     ],
     toLight: 'Light mode', toDark: 'Dark mode', fxOff: 'Lightning off', fxOn: 'Lightning on',
+    general: 'General explanation', generalNote: 'Everything below is a generic explanation based on the CWE (weakness type) and CVSS. For facts specific to this vulnerability, rely on the summary and primary sources above.',
+    readNote: 'This card is now marked as read. It leaves the list when you close it.',
+    noMatch: 'No product matches.', clearSearch: 'Clear search', noSel: 'No product is selected.', showAll: 'Show all',
     howto: 'How to use', source: 'Source code (GitHub, MIT License)',
     howtoSteps: [
       'Under "Follow settings", pick the languages, servers and frameworks you run.',
@@ -229,7 +236,7 @@ function visibleItems() {
     && (!f.cvss || score(it) >= f.cvss)
     && (!f.epss || (it.epss ?? 0) >= f.epss)
     && (!f.kev || it.kev)
-    && (!f.unread || !S.read.has(it.id)));
+    && (!f.unread || !S.read.has(it.id) || S.keep.has(it.id)));
   const bucket = (it) => Math.round((it.epss ?? 0) * 10);
   // Newest: group by day, then most severe first within the day (KEV, CVSS, EPSS).
   if (f.sort === 'new') list.sort((a, b) => fmtDate(b.pub).localeCompare(fmtDate(a.pub))
@@ -266,6 +273,25 @@ function cardBody(it) {
   if (ja && it.en) h.push(`<details class="orig"><summary>${t('original')}</summary><p>${esc(it.en)}</p></details>`);
   if (S.lang === 'ja' && !ja && !it.vp && !mt) h.push(`<p class="note">${t('noJa')}</p>`);
 
+  if (it.aff?.some((a) => a[1])) {
+    const by = new Map();
+    for (const [id, range] of it.aff) if (range) by.set(id, [...(by.get(id) || []), range]);
+    h.push(`<h4>${t('versions')}</h4><ul>${[...by].map(([id, r]) => `<li>${esc(prodName(id))}: <span class="mono">${esc(r.join(' , '))}</span></li>`).join('')}</ul>`);
+  }
+  if (it.fix?.length) h.push(`<h4>${t('fixed')}</h4><p class="mono">${esc(it.fix.join(' , '))}</p>`);
+  if (it.kev) {
+    h.push(`<h4>${t('kevInfo')}</h4><ul><li>${esc(t('kevAdded', it.kev.a))}</li>${it.kev.due ? `<li>${esc(t('kevDue', it.kev.due))}</li>` : ''}</ul>`);
+    if (it.act) h.push(`<h4>${t('action')}</h4><p>${esc(it.act)}</p>`);
+  }
+  const links = [];
+  if (it.id.startsWith('CVE-')) {
+    links.push(link(`https://nvd.nist.gov/vuln/detail/${it.id}`, 'NVD'), link(`https://www.cve.org/CVERecord?id=${it.id}`, 'CVE.org'));
+  } else links.push(link(`https://osv.dev/vulnerability/${it.id}`, 'OSV'));
+  if (it.ja?.u) links.push(link(it.ja.u, 'JVN iPedia'));
+  for (const u of it.refs || []) { try { links.push(link(u, new URL(u).hostname)); } catch { /* skip malformed URL */ } }
+  h.push(`<h4>${t('links')}</h4><div class="links">${links.join('')}</div>`);
+  // Everything below is generic text derived from CWE and CVSS, so say so.
+  h.push(`<h3 class="general">${t('general')}</h3><p class="note">${t('generalNote')}</p>`);
   h.push(`<h4>${t('what')}</h4>`);
   if (!ex.types.length) h.push(`<p class="note">${esc(ex.noCwe)}</p>`);
   for (const ty of ex.types) {
@@ -286,23 +312,6 @@ function cardBody(it) {
     if (ex.scope) h.push(`<p class="note">${esc(ex.scope)}</p>`);
     if (it.cvss?.v) h.push(`<p class="mono note">${esc(it.cvss.v)}</p>`);
   }
-  if (it.aff?.some((a) => a[1])) {
-    const by = new Map();
-    for (const [id, range] of it.aff) if (range) by.set(id, [...(by.get(id) || []), range]);
-    h.push(`<h4>${t('versions')}</h4><ul>${[...by].map(([id, r]) => `<li>${esc(prodName(id))}: <span class="mono">${esc(r.join(' , '))}</span></li>`).join('')}</ul>`);
-  }
-  if (it.fix?.length) h.push(`<h4>${t('fixed')}</h4><p class="mono">${esc(it.fix.join(' , '))}</p>`);
-  if (it.kev) {
-    h.push(`<h4>${t('kevInfo')}</h4><ul><li>${esc(t('kevAdded', it.kev.a))}</li>${it.kev.due ? `<li>${esc(t('kevDue', it.kev.due))}</li>` : ''}</ul>`);
-    if (it.act) h.push(`<h4>${t('action')}</h4><p>${esc(it.act)}</p>`);
-  }
-  const links = [];
-  if (it.id.startsWith('CVE-')) {
-    links.push(link(`https://nvd.nist.gov/vuln/detail/${it.id}`, 'NVD'), link(`https://www.cve.org/CVERecord?id=${it.id}`, 'CVE.org'));
-  } else links.push(link(`https://osv.dev/vulnerability/${it.id}`, 'OSV'));
-  if (it.ja?.u) links.push(link(it.ja.u, 'JVN iPedia'));
-  for (const u of it.refs || []) { try { links.push(link(u, new URL(u).hostname)); } catch { /* skip malformed URL */ } }
-  h.push(`<h4>${t('links')}</h4><div class="links">${links.join('')}</div>`);
   if (it.how === 'cna') h.push(`<p class="note">${t('matchCna')}</p>`);
   if (it.how === 'osv') h.push(`<p class="note">${t('matchOsv')}</p>`);
   h.push(`<p class="actions"><button class="btn" data-act="unread">${t('markUnread')}</button></p>`);
@@ -389,6 +398,7 @@ ${cats.map((cat) => `<section class="cat"><h3>${esc(t('cat')[cat])} <small data-
     const n = S.meta?.counts?.[c.id] ?? 0;
     return `<label class="chip" data-name="${esc(c.name.toLowerCase())}"><input type="checkbox" data-follow="${esc(c.id)}"${S.follows.has(c.id) ? ' checked' : ''}>${esc(c.name)} <small title="${esc(t('countLabel'))}" aria-label="${esc(t('countLabel'))} ${n}">${n}</small></label>`;
   }).join('')}</div></section>`).join('')}
+<div class="empty" data-nomatch hidden><p></p><button class="btn"></button></div>
 <div class="stickybar"><span id="following">${t('following', S.follows.size)}</span><button class="btn primary" data-act="toFeed">${t('toFeed')}</button></div>`;
 }
 // Settings: per-category selection counts, plus search / "selected only" visibility.
@@ -403,6 +413,14 @@ function applyChips(visibility = true) {
     }
     sec.querySelector('[data-catn]').textContent = t('catSel', chips.filter(on).length, chips.length);
   }
+  if (!visibility) return;
+  // Nothing left to show: say why and offer the way back.
+  const none = app.querySelector('[data-nomatch]');
+  none.hidden = [...app.querySelectorAll('.cat')].some((sec) => !sec.hidden);
+  none.querySelector('p').textContent = t(q ? 'noMatch' : 'noSel');
+  const btn = none.querySelector('button');
+  btn.textContent = t(q ? 'clearSearch' : 'showAll');
+  btn.dataset.act = q ? 'clearSearch' : 'showAll';
 }
 // Update the unread numbers in place, without rebuilding the list.
 function refreshCounts() {
@@ -421,7 +439,38 @@ function refreshCounts() {
 
 // ---------- shell ----------
 const app = document.getElementById('app');
+// Selector for the focused control, so focus can be put back after a rebuild.
+function focusKey() {
+  const el = document.activeElement;
+  if (!el || !app.contains(el)) return '';
+  const cardEl = el.closest('.card');
+  const scope = cardEl ? `.card[data-id="${CSS.escape(cardEl.dataset.id)}"] ` : '';
+  if (cardEl && el.tagName === 'SUMMARY' && el.parentElement === cardEl) return `${scope}> summary`;
+  for (const k of ['act', 'tab', 'f', 'fp', 'follow']) if (k in el.dataset) return `${scope}[data-${k}="${CSS.escape(el.dataset[k])}"]`;
+  return 'search' in el.dataset ? '[data-search]' : '';
+}
+// Build a card's body on first open (it is left empty until then).
+function fillBody(el) {
+  const it = findItem(el.dataset.id);
+  const body = el.querySelector('[data-body]');
+  if (!it || body.firstChild) return;
+  body.innerHTML = cardBody(it);
+  const box = body.querySelector('[data-mt]');
+  if (box?.querySelector('.mt')) translateInto(box, it, false);
+}
+function readNote(el) {
+  const body = el.querySelector('[data-body]');
+  if (!body.querySelector('.readnote')) body.insertAdjacentHTML('afterbegin', `<p class="note readnote">${t('readNote')}</p>`);
+}
 function render() {
+  // Carry open cards, focus and scroll across the rebuild so reading is not interrupted.
+  const sameTab = app.dataset.view === S.tab;
+  const openIds = sameTab ? [...app.querySelectorAll('.card[open]')].map((c) => c.dataset.id) : [];
+  const glossOpen = sameTab && !!app.querySelector('.glossary[open]');
+  const search = sameTab ? app.querySelector('[data-search]')?.value || '' : '';
+  const focus = sameTab ? focusKey() : '';
+  const y = scrollY;
+  S.keep = new Set([...S.keep].filter((id) => openIds.includes(id)));
   document.documentElement.lang = S.lang;
   const failed = Object.entries(S.meta?.sources || {}).filter(([, v]) => !v.ok).map(([k]) => k.toUpperCase());
   const updated = S.meta ? new Date(S.meta.generatedAt).toLocaleString(S.lang === 'ja' ? 'ja-JP' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -441,7 +490,21 @@ ${S.failed.length ? `<div class="banner">${esc(t('productDown', S.failed.map(pro
 <nav class="tabs" role="tablist">${tab('feed', t('feed'), unread)}${tab('kev', t('kevTab'))}${tab('settings', t('settings'), S.follows.size)}</nav>
 <main>${view}</main>
 <footer>${t('footer').map((l) => `<p>${esc(l)}</p>`).join('')}<p>${link('https://github.com/mizumotter/vuln-watch', t('source'))}</p></footer></div>`;
-  if (S.tab === 'settings' && !S.error) applyChips();
+  app.dataset.view = S.tab;
+  for (const id of openIds) {
+    const el = app.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (!el) continue;
+    el.open = true;
+    fillBody(el);
+    if (S.keep.has(id)) readNote(el);
+  }
+  if (glossOpen && app.querySelector('.glossary')) app.querySelector('.glossary').open = true;
+  if (S.tab === 'settings' && !S.error) {
+    app.querySelector('[data-search]').value = search;
+    applyChips();
+  }
+  if (sameTab) scrollTo(0, y);
+  if (focus) app.querySelector(focus)?.focus({ preventScroll: true });
 }
 
 function markRead(ids) {
@@ -463,15 +526,39 @@ app.addEventListener('click', (e) => {
     S.fx = !S.fx;
     save('fx', S.fx);
     document.documentElement.dataset.fx = S.fx ? 'on' : 'off';
-    render();
+    const btn = e.target.closest('[data-act]');
+    btn.textContent = `⚡ ${t(S.fx ? 'fxOff' : 'fxOn')}`;
+    btn.setAttribute('aria-pressed', S.fx);
   }
   if (act === 'theme') {
     S.theme = S.theme === 'dark' ? 'light' : 'dark';
     save('theme', S.theme);
     document.documentElement.dataset.theme = S.theme;
-    render();
+    e.target.closest('[data-act]').textContent = S.theme === 'dark' ? `☀ ${t('toLight')}` : `☾ ${t('toDark')}`;
   }
-  if (act === 'more') { S.limit += 50; render(); }
+  if (act === 'more') {
+    // Append the next page after the cards already on screen; nothing above is rebuilt.
+    const btn = e.target.closest('[data-act]');
+    const shown = new Set([...app.querySelectorAll('main .card')].map((c) => c.dataset.id));
+    const rest = visibleItems().filter((it) => !shown.has(it.id));
+    btn.insertAdjacentHTML('beforebegin', rest.slice(0, 50).map(card).join(''));
+    S.limit = shown.size + 50;
+    if (rest.length <= 50) {
+      btn.previousElementSibling?.querySelector('summary')?.focus({ preventScroll: true });
+      btn.remove();
+    }
+  }
+  if (act === 'clearSearch') {
+    const input = app.querySelector('[data-search]');
+    input.value = '';
+    applyChips();
+    input.focus();
+  }
+  if (act === 'showAll') {
+    S.onlySel = false;
+    app.querySelector('[data-only]').checked = false;
+    applyChips();
+  }
   if (act === 'markAll') { markRead(visibleItems().map((it) => it.id)); render(); }
   if (act === 'toFeed') { S.tab = 'feed'; render(); }
   if (act === 'clear') {
@@ -487,6 +574,8 @@ app.addEventListener('click', (e) => {
   if (act === 'unread') {
     const cardEl = e.target.closest('.card');
     S.read.delete(cardEl.dataset.id);
+    S.keep.delete(cardEl.dataset.id);
+    cardEl.querySelector('.readnote')?.remove();
     save('read', [...S.read]);
     cardEl.classList.add('unread');
     cardEl.open = false;
@@ -528,20 +617,24 @@ app.addEventListener('change', async (e) => {
 app.addEventListener('input', (e) => {
   if ('search' in e.target.dataset) applyChips();
 });
-// "toggle" does not bubble, so listen in the capture phase. The body is built lazily on first open.
+// "toggle" does not bubble, so listen in the capture phase.
 app.addEventListener('toggle', (e) => {
   const el = e.target;
-  if (!el.classList?.contains('card') || !el.open) return;
-  const it = findItem(el.dataset.id);
-  const body = el.querySelector('[data-body]');
-  if (it && !body.firstChild) {
-    body.innerHTML = cardBody(it);
-    const box = body.querySelector('[data-mt]');
-    if (box?.querySelector('.mt')) translateInto(box, it, false);
+  if (!el.classList?.contains('card')) return;
+  const id = el.dataset.id;
+  if (!el.open) {
+    // "Unread only": a card that was read in this view leaves the list once it is closed.
+    if (S.keep.delete(id) && S.read.has(id)) {
+      el.remove();
+      if (app.querySelector('main .card')) refreshCounts(); else render();
+    }
+    return;
   }
+  fillBody(el);
   if (el.classList.contains('unread')) {
-    markRead([el.dataset.id]);
+    markRead([id]);
     el.classList.remove('unread');
+    if (S.tab === 'feed' && S.f.unread) { S.keep.add(id); readNote(el); }
     refreshCounts();
   }
 }, true);
