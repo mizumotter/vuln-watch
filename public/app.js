@@ -40,7 +40,7 @@ const TXT = {
       ['悪用確認済み（KEV）', '米国 CISA が、実際の攻撃で悪用されたと確認した脆弱性の一覧です。掲載されたものは優先して対応します。'],
     ],
     toLight: 'ライト表示', toDark: 'ダーク表示', fxOff: '雷をオフ', fxOn: '雷をオン',
-    howto: '使い方',
+    howto: '使い方', source: 'ソースコード（GitHub・MIT ライセンス）',
     howtoSteps: [
       '「フォロー設定」で、使っている言語・サーバ・フレームワークなどを選びます。',
       '「フィード」に、選んだ製品の脆弱性が深刻度と悪用予測つきで並びます。カードを開くと、攻撃手法・想定される被害・修正版を確認できます。',
@@ -92,7 +92,7 @@ const TXT = {
       ['Known exploited (KEV)', 'The CISA list of flaws confirmed to be exploited in real attacks. Listed flaws should be handled first.'],
     ],
     toLight: 'Light mode', toDark: 'Dark mode', fxOff: 'Lightning off', fxOn: 'Lightning on',
-    howto: 'How to use',
+    howto: 'How to use', source: 'Source code (GitHub, MIT License)',
     howtoSteps: [
       'Under "Follow settings", pick the languages, servers and frameworks you run.',
       'The "Feed" lists their vulnerabilities with severity and exploit prediction. Open a card for the attack technique, the impact and the fixed versions.',
@@ -437,7 +437,7 @@ ${failed.length ? `<div class="banner">${esc(t('sourceDown', failed.join(', ')))
 ${S.failed.length ? `<div class="banner">${esc(t('productDown', S.failed.map(prodName).join(', ')))}</div>` : ''}
 <nav class="tabs" role="tablist">${tab('feed', t('feed'), unread)}${tab('kev', t('kevTab'))}${tab('settings', t('settings'), S.follows.size)}</nav>
 <main>${view}</main>
-<footer>${t('footer').map((l) => `<p>${esc(l)}</p>`).join('')}</footer></div>`;
+<footer>${t('footer').map((l) => `<p>${esc(l)}</p>`).join('')}<p>${link('https://github.com/mizumotter/vuln-watch', t('source'))}</p></footer></div>`;
   if (S.tab === 'settings' && !S.error) applyChips();
 }
 
