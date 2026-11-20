@@ -1,0 +1,51 @@
+name: update-data
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # cache/db.json carries the state between runs. A cache miss just triggers a fresh backfill.
+      - uses: actions/cache/restore@v4
+        with:
+          path: cache
+          key: db-${{ github.run_id }}
+          restore-keys: db-
+      - name: Collect data
+        run: node scripts/build-data.mjs
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      - uses: actions/cache/save@v4
+        with:
+          path: cache
+          key: db-${{ github.run_id }}
+      - name: Deploy
+        run: npx --yes wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # GitHub disables scheduled workflows after 60 days without commits in a public repo.
+      - name: Heartbeat commit
+        if: github.event_name == 'schedule'
+        run: |
+          last=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last )) -gt 2592000 ]; then
+            date -u +%F > .heartbeat
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .heartbeat && git commit -m "chore: heartbeat" && git push
+          fi

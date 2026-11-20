@@ -1,0 +1,8 @@
+{
+  "name": "vuln-watch",
+  "private": true,
+  "scripts": {
+    "data": "node scripts/build-data.mjs",
+    "dev": "node scripts/serve.mjs"
+  }
+}

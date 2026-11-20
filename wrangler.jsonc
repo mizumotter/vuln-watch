@@ -1,0 +1,7 @@
+{
+  // Static assets only: no Worker code, no workers.dev URL.
+  "name": "vuln-watch",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./public" },
+  "routes": [{ "pattern": "vuln.solocamp.work", "custom_domain": true }]
+}
