@@ -138,5 +138,13 @@
 {"id":"phpmyadmin","name":"phpMyAdmin","cat":"infra","cpe":["phpmyadmin:phpmyadmin"]},
 {"id":"npm","name":"npm CLI","cat":"infra","cpe":["npmjs:npm"],"names":["npm","cli"],"vendorOnly":"npm","osv":[["npm","npm"]]},
 {"id":"pip","name":"pip","cat":"infra","cpe":["pypa:pip"],"osv":[["PyPI","pip"]]},
-{"id":"ollama","name":"Ollama","cat":"infra","cpe":["ollama:ollama"]}
+{"id":"ollama","name":"Ollama","cat":"infra","cpe":["ollama:ollama"]},
+{"id":"amazon-linux","name":"Amazon Linux","cat":"cloud","cpe":["amazon:amazon_linux","amazon:linux_2","amazon:linux"],"names":["amazon linux*"]},
+{"id":"aws-cli","name":"AWS CLI","cat":"cloud","cpe":["amazon:aws_command_line_interface"],"names":["aws-cli"],"osv":[["PyPI","awscli"]]},
+{"id":"aws-sdk","name":"AWS SDK","cat":"cloud","cpe":["amazon:aws_software_development_kit","amazon:amazon_web_services_software_development_kit","amazon:aws-sdk-java","amazon:aws_sdk_for_javascipt","amazon:aws-sigv4"],"names":["aws sdk*","aws-sdk*"],"osv":[["npm","aws-sdk"],["PyPI","boto3"],["PyPI","botocore"],["Maven","com.amazonaws:aws-java-sdk-core"],["Go","github.com/aws/aws-sdk-go"],["Go","github.com/aws/aws-sdk-go-v2"],["Packagist","aws/aws-sdk-php"],["RubyGems","aws-sdk-core"],["NuGet","AWSSDK.Core"],["crates.io","aws-sigv4"]]},
+{"id":"aws-cdk","name":"AWS CDK","cat":"cloud","cpe":["amazon:aws_cloud_development_kit"],"names":["aws cdk*","aws-cdk*"],"osv":[["npm","aws-cdk-lib"],["npm","aws-cdk"],["PyPI","aws-cdk-lib"]]},
+{"id":"firecracker","name":"Firecracker","cat":"cloud","cpe":["amazon:firecracker"]},
+{"id":"bottlerocket","name":"Bottlerocket","cat":"cloud","names":["bottlerocket*"]},
+{"id":"azure-cli","name":"Azure CLI","cat":"cloud","cpe":["microsoft:azure_command-line_interface","microsoft:azure_cli"],"names":["azure-cli","microsoft azure cli"],"osv":[["PyPI","azure-cli"],["PyPI","azure-cli-core"]]},
+{"id":"gcloud","name":"Google Cloud SDK (gcloud)","cat":"cloud","cpe":["google:cloud_sdk"],"names":["google cloud sdk","google cloud cli","gcloud cli"]}
 ]

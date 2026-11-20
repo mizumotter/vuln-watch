@@ -3,6 +3,7 @@
 // and writes static JSON under public/data/. State lives in cache/db.json.
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 
 const ROOT = new URL('..', import.meta.url);
 const CACHE = new URL('cache/db.json', ROOT);
@@ -36,7 +37,10 @@ async function get(url, opts = {}, tries = 4) {
 }
 
 // ---------- catalog index ----------
-const catalog = JSON.parse(await readFile(new URL('catalog.json', ROOT), 'utf8'));
+const catalogText = await readFile(new URL('catalog.json', ROOT), 'utf8');
+const catalog = JSON.parse(catalogText);
+// Records are only kept when they match the catalog, so a catalog change needs a fresh backfill.
+const catalogSig = createHash('sha256').update(catalogText).digest('hex').slice(0, 16);
 const cpeExact = new Map();
 const cpePrefix = [];
 const nameExact = new Map();
@@ -200,7 +204,9 @@ async function fetchNvd(params, onCve) {
 async function runNvd(db) {
   const iso = (t) => new Date(t).toISOString();
   const onCve = (cve) => upsertNvd(db, cve);
-  const last = db.lastRun || 0;
+  const changed = db.catalogSig !== catalogSig;
+  if (changed) log('catalog changed: starting a backfill');
+  const last = changed ? 0 : db.lastRun || 0;
   if (now - last > 100 * DAY) {
     // First run (or a very stale cache): backfill by publication date, 100 days per request.
     for (let from = now - BACKFILL_DAYS * DAY; from < now; from += 100 * DAY) {
@@ -210,6 +216,7 @@ async function runNvd(db) {
     await fetchNvd({ lastModStartDate: iso(last - 2 * 3600000), lastModEndDate: iso(now) }, onCve);
   }
   db.lastRun = now;
+  if (changed) { db.catalogSig = catalogSig; db.jvnBackfilled = false; }
 }
 
 // ---------- OSV ----------
