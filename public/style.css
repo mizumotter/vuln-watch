@@ -1,7 +1,7 @@
 :root {
   --bg: #f5f6f8; --card: #fff; --text: #1a1d21; --muted: #5d6877; --line: #dce1e8; --accent: #2456d6;
   --chip: #eef1f5; --crit: #b3261e; --high: #b8530a; --med: #7d6400; --low: #2c7a4b; --kev: #8c1d18;
-  --on-accent: #fff; --bolt: #e09a00; --bolt-core: #b97a00; --flash: rgba(224, 154, 0, 0.22);
+  --on-accent: #fff; --bolt: #e09a00; --bolt-core: #b97a00; --flash: rgba(224, 154, 0, 0.22); --flash-far: rgba(120, 140, 200, 0.20);
   color-scheme: light;
 }
 /* Dark values: used when the OS prefers dark (unless the user picked light) or when the user picked dark. */
@@ -9,14 +9,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0f1216; --card: #181c22; --text: #e6e9ee; --muted: #9aa5b4; --line: #2a313b; --accent: #7aa2ff;
     --chip: #222831; --crit: #ff7469; --high: #ff9d4d; --med: #e0b93b; --low: #6fcf97; --kev: #c62f28;
-    --on-accent: #0f1216; --bolt: #ffd84d; --bolt-core: #fffbe6; --flash: rgba(200, 215, 255, 0.20);
+    --on-accent: #0f1216; --bolt: #ffd84d; --bolt-core: #fffbe6; --flash: rgba(200, 215, 255, 0.20); --flash-far: rgba(150, 175, 255, 0.16);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1216; --card: #181c22; --text: #e6e9ee; --muted: #9aa5b4; --line: #2a313b; --accent: #7aa2ff;
   --chip: #222831; --crit: #ff7469; --high: #ff9d4d; --med: #e0b93b; --low: #6fcf97; --kev: #c62f28;
-  --on-accent: #0f1216; --bolt: #ffd84d; --bolt-core: #fffbe6; --flash: rgba(200, 215, 255, 0.20);
+  --on-accent: #0f1216; --bolt: #ffd84d; --bolt-core: #fffbe6; --flash: rgba(200, 215, 255, 0.20); --flash-far: rgba(150, 175, 255, 0.16);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -28,28 +28,33 @@ a { color: var(--accent); }
 button, select, input { font: inherit; color: inherit; }
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px 48px; position: relative; z-index: 1; }
 
-/* Lightning: bolts strike across the whole viewport behind the content, and the sky flashes with each one. */
+/* Lightning, on an 18s cycle: two bolts with a bright flash, and three bolt-less glows like distant lightning. */
 .sky { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
-.sky::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0, var(--flash), transparent 75%); opacity: 0; animation: flash 6.5s infinite; }
+.glow { position: absolute; inset: 0; opacity: 0; }
+.glow.far { animation: distant 18s infinite; }
+.glow.f1 { background: radial-gradient(ellipse 70% 55% at 12% 0, var(--flash-far), transparent 70%); }
+.glow.f2 { background: radial-gradient(ellipse 80% 60% at 88% 8%, var(--flash-far), transparent 70%); animation-delay: 8s; }
+.glow.f3 { background: radial-gradient(ellipse 110% 50% at 50% 0, var(--flash-far), transparent 72%); animation-delay: 11.5s; }
+.glow.near { animation: strike 18s infinite; }
+.glow.n1 { background: radial-gradient(ellipse 70% 80% at 86% 0, var(--flash), transparent 75%); }
+.glow.n2 { background: radial-gradient(ellipse 70% 90% at 48% 0, var(--flash), transparent 75%); animation-delay: 9s; }
 .strike {
   position: absolute; top: 0; width: 170px; height: 72vh; opacity: 0; fill: none;
   stroke: var(--bolt-core); stroke-width: 3.5; stroke-linejoin: bevel; stroke-linecap: round;
   filter: drop-shadow(0 0 4px var(--bolt)) drop-shadow(0 0 14px var(--bolt)) drop-shadow(0 0 34px var(--bolt));
-  animation: strike 6.5s infinite;
+  animation: strike 18s infinite;
 }
 .strike polyline + polyline { stroke-width: 2; }
 .strike.s1 { right: 9%; }
-.strike.s2 { left: 6%; height: 58vh; animation-delay: 2.1s; }
-.strike.s3 { left: 44%; height: 86vh; width: 200px; animation-delay: 4.2s; }
-.strike.s4 { right: 30%; height: 46vh; width: 130px; animation-delay: 5.3s; }
+.strike.s2 { left: 42%; height: 84vh; width: 200px; animation-delay: 9s; }
 @keyframes strike {
-  0%, 84%, 100% { opacity: 0; }
-  85% { opacity: 1; } 86% { opacity: 0.1; } 87.5% { opacity: 1; } 89% { opacity: 0.3; } 90.5% { opacity: 0.95; } 92% { opacity: 0.2; } 95% { opacity: 0; }
+  0%, 85%, 100% { opacity: 0; }
+  85.4% { opacity: 1; } 85.8% { opacity: 0.1; } 86.4% { opacity: 1; } 87% { opacity: 0.3; } 87.6% { opacity: 0.95; } 88.2% { opacity: 0.2; } 89.5% { opacity: 0; }
 }
-/* One sky flash per bolt (same offsets as the four strikes). */
-@keyframes flash {
-  0%, 16%, 21%, 49%, 54%, 66%, 70%, 84%, 95%, 100% { opacity: 0; }
-  17.5%, 50.5%, 67%, 85%, 87.5% { opacity: 1; } 19%, 52%, 86%, 89% { opacity: 0.25; } 90.5% { opacity: 0.8; }
+/* Softer and slower than a strike: the sky lights up, flickers once and fades. */
+@keyframes distant {
+  0%, 10%, 100% { opacity: 0; }
+  10.8% { opacity: 0.8; } 11.6% { opacity: 0.3; } 12.6% { opacity: 1; } 14% { opacity: 0.45; } 17% { opacity: 0; }
 }
 .bolt { width: 0.8em; height: 0.8em; margin-right: 5px; vertical-align: -0.06em; fill: var(--bolt); animation: flicker 11s infinite; }
 @keyframes flicker {
