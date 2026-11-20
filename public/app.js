@@ -10,9 +10,11 @@ const S = {
   theme: load('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   follows: new Set(load('follows', [])),
   read: new Set(load('read', [])),
-  f: { days: 30, cvss: 0, epss: 0, kev: false, unread: false, product: '', sort: 'priority', ...load('filters', {}) },
+  f: { days: 30, cvss: 0, epss: 0, kev: false, unread: false, products: [], sort: 'priority', ...load('filters', {}) },
+  fx: load('fx', true),
   tab: 'feed', catalog: [], meta: null, items: [], kev: [], limit: 50, error: '', failed: [], onlySel: false, howto: null,
 };
+if (!Array.isArray(S.f.products)) S.f.products = [];
 if (!S.follows.size) S.tab = 'settings';
 
 const TXT = {
@@ -37,7 +39,7 @@ const TXT = {
       ['悪用予測（EPSS）', '今後 30 日以内に実際の攻撃で悪用される確率の予測です。数値が高いほど狙われやすいことを示します。'],
       ['悪用確認済み（KEV）', '米国 CISA が、実際の攻撃で悪用されたと確認した脆弱性の一覧です。掲載されたものは優先して対応します。'],
     ],
-    toLight: 'ライト表示', toDark: 'ダーク表示',
+    toLight: 'ライト表示', toDark: 'ダーク表示', fxOff: '雷をオフ', fxOn: '雷をオン',
     howto: '使い方',
     howtoSteps: [
       '「フォロー設定」で、使っている言語・サーバ・フレームワークなどを選びます。',
@@ -89,7 +91,7 @@ const TXT = {
       ['Exploit prediction (EPSS)', 'The predicted probability that the flaw is exploited in real attacks within the next 30 days. Higher means more likely to be targeted.'],
       ['Known exploited (KEV)', 'The CISA list of flaws confirmed to be exploited in real attacks. Listed flaws should be handled first.'],
     ],
-    toLight: 'Light mode', toDark: 'Dark mode',
+    toLight: 'Light mode', toDark: 'Dark mode', fxOff: 'Lightning off', fxOn: 'Lightning on',
     howto: 'How to use',
     howtoSteps: [
       'Under "Follow settings", pick the languages, servers and frameworks you run.',
@@ -223,7 +225,7 @@ function visibleItems() {
   const since = f.days ? Date.now() - f.days * 86400000 : 0;
   const list = S.items.filter((it) =>
     (!since || Date.parse(it.pub) >= since || (it.kev && Date.parse(it.kev.a) >= since))
-    && (!f.product || it.p.includes(f.product))
+    && (!f.products.length || it.p.some((p) => f.products.includes(p)))
     && (!f.cvss || score(it) >= f.cvss)
     && (!f.epss || (it.epss ?? 0) >= f.epss)
     && (!f.kev || it.kev)
@@ -334,7 +336,7 @@ function activeFilters() {
   const f = S.f;
   const out = [];
   if (f.days) out.push(`${t('days')}: ${DAY_OPTS().find(([v]) => v === f.days)?.[1] ?? f.days}`);
-  if (f.product) out.push(`${t('product')}: ${prodName(f.product)}`);
+  if (f.products.length) out.push(`${t('product')}: ${f.products.map(prodName).join(', ')}`);
   if (f.cvss) out.push(`${t('fCvss')} ${f.cvss.toFixed(1)}+`);
   if (f.epss) out.push(`${t('fEpss')} ${f.epss * 100}%+`);
   if (f.kev) out.push(t('kevOnly'));
@@ -350,9 +352,12 @@ function feedView() {
   const active = activeFilters();
   const empty = `<div class="empty"><p>${t('emptyFilter')}</p>${active.length
     ? `<p class="note">${t('applied')}: ${esc(active.join(' / '))}</p><button class="btn primary" data-act="clear">${t('clearFilters')}</button>` : ''}</div>`;
-  return `<div class="filters">
+  // Product filter: the followed products as chips; none selected means all.
+  const chip = (c) => `<label class="chip"><input type="checkbox" data-fp="${esc(c.id)}"${S.f.products.includes(c.id) ? ' checked' : ''}>${esc(c.name)}</label>`;
+  return `<div class="pfilter"><span>${t('product')}</span><div class="chips">
+<label class="chip"><input type="checkbox" data-fp=""${S.f.products.length ? '' : ' checked'}>${t('allProducts')}</label>${followed.map(chip).join('')}</div></div>
+<div class="filters">
 ${field(t('days'), select('days', DAY_OPTS()))}
-${field(t('product'), select('product', [['', t('allProducts')], ...followed.map((c) => [c.id, c.name])]))}
 ${field(t('fCvss'), select('cvss', [[0, any], [4, '4.0+'], [7, '7.0+'], [9, '9.0+']]))}
 ${field(t('fEpss'), select('epss', [[0, any], [0.01, '1%+'], [0.1, '10%+'], [0.5, '50%+']]))}
 <div class="checks">
@@ -422,6 +427,7 @@ function render() {
   const view = S.error ? `<p class="empty">${esc(S.error)}</p>` : S.tab === 'kev' ? kevView() : S.tab === 'settings' ? settingsView() : feedView();
   app.innerHTML = `<div class="wrap">
 <header class="top"><h1><svg class="bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>VulnWatch</h1><span class="updated">${esc(t('updated', updated))}</span>
+<button class="btn" data-act="fx" aria-pressed="${S.fx}">⚡ ${t(S.fx ? 'fxOff' : 'fxOn')}</button>
 <button class="btn" data-act="theme">${S.theme === 'dark' ? `☀ ${t('toLight')}` : `☾ ${t('toDark')}`}</button>
 <button class="btn" data-act="lang" aria-label="Switch language">${S.lang === 'ja' ? 'English' : '日本語'}</button></header>
 <p class="note lead">${t('tagline')}</p>
@@ -450,6 +456,12 @@ app.addEventListener('click', (e) => {
   if (tabBtn) { S.tab = tabBtn.dataset.tab; S.limit = 50; render(); return; }
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'lang') { S.lang = S.lang === 'ja' ? 'en' : 'ja'; save('lang', S.lang); render(); }
+  if (act === 'fx') {
+    S.fx = !S.fx;
+    save('fx', S.fx);
+    document.documentElement.dataset.fx = S.fx ? 'on' : 'off';
+    render();
+  }
   if (act === 'theme') {
     S.theme = S.theme === 'dark' ? 'light' : 'dark';
     save('theme', S.theme);
@@ -460,7 +472,7 @@ app.addEventListener('click', (e) => {
   if (act === 'markAll') { markRead(visibleItems().map((it) => it.id)); render(); }
   if (act === 'toFeed') { S.tab = 'feed'; render(); }
   if (act === 'clear') {
-    Object.assign(S.f, { days: 0, product: '', cvss: 0, epss: 0, kev: false, unread: false });
+    Object.assign(S.f, { days: 0, products: [], cvss: 0, epss: 0, kev: false, unread: false });
     save('filters', S.f);
     S.limit = 50;
     render();
@@ -486,10 +498,18 @@ app.addEventListener('change', async (e) => {
     save('filters', S.f);
     S.limit = 50;
     render();
+  } else if ('fp' in el.dataset) {
+    const id = el.dataset.fp;
+    if (!id) S.f.products = [];
+    else S.f.products = el.checked ? [...S.f.products, id] : S.f.products.filter((p) => p !== id);
+    save('filters', S.f);
+    S.limit = 50;
+    render();
   } else if (el.dataset.follow) {
     if (el.checked) S.follows.add(el.dataset.follow); else S.follows.delete(el.dataset.follow);
     save('follows', [...S.follows]);
-    if (!S.follows.has(S.f.product)) S.f.product = '';
+    S.f.products = S.f.products.filter((id) => S.follows.has(id));
+    save('filters', S.f);
     document.getElementById('following').textContent = t('following', S.follows.size);
     const settingsTab = app.querySelector('[data-n="settings"]');
     settingsTab.textContent = S.follows.size;

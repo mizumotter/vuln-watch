@@ -57,6 +57,8 @@ button, select, input { font: inherit; color: inherit; }
   87%, 89.5% { opacity: 1; filter: drop-shadow(0 0 5px var(--bolt)); } 88% { opacity: 0.4; }
 }
 .b.kev::before { content: "⚡"; margin-right: 3px; }
+:root[data-fx="off"] .sky { display: none; }
+:root[data-fx="off"] .bolt { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .sky { display: none; }
   .bolt { animation: none; }
@@ -86,6 +88,9 @@ nav.tabs .n { font-size: 12px; background: var(--chip); border-radius: 10px; pad
 .lead { margin: 0 0 12px; }
 
 .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; font-size: 13px; }
+.pfilter { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.pfilter > span { display: block; margin-bottom: 4px; }
+.pfilter .chip { color: var(--text); font-size: 14px; padding: 3px 12px; }
 .field { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 13px; min-width: 0; }
 .field select { width: 100%; border: 1px solid var(--line); background: var(--card); border-radius: 6px; padding: 6px 8px; color: var(--text); }
 .checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); }
