@@ -28,3 +28,15 @@ npm run dev    # http://localhost:4180
 
 - GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`（任意で `NVD_API_KEY`）
 - 公開先のホスト名は `wrangler.jsonc` の `routes`
+
+## 定期実行の予備（cron/）
+
+GitHub の schedule は遅延・欠落することがあるため、Cloudflare の Cron Trigger（`cron/worker.js`）から
+30 分ごとに `workflow_dispatch` でワークフローを起動する。Actions からは配備しないので、変更時は手元で実行する。
+
+```bash
+npx wrangler deploy -c cron/wrangler.jsonc
+npx wrangler secret put GITHUB_TOKEN -c cron/wrangler.jsonc   # fine-grained PAT: このリポジトリの Actions (Read and write) のみ
+```
+
+フォークして使う場合は `cron/worker.js` のリポジトリ名を書き換える。
