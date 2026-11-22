@@ -6,7 +6,7 @@
 ## 仕組み
 
 ```
-GitHub Actions (30分ごと) → scripts/build-data.mjs → public/data/*.json → wrangler deploy
+Cloudflare Cron Trigger (30分ごと) → GitHub Actions → scripts/build-data.mjs → public/data/*.json → wrangler deploy
 ブラウザ → フォロー中の製品の JSON だけ取得して表示
 ```
 
@@ -29,14 +29,19 @@ npm run dev    # http://localhost:4180
 - GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`（任意で `NVD_API_KEY`）
 - 公開先のホスト名は `wrangler.jsonc` の `routes`
 
-## 定期実行の予備（cron/）
+## 定期実行（cron/）
 
-GitHub の schedule は遅延・欠落することがあるため、Cloudflare の Cron Trigger（`cron/worker.js`）から
-30 分ごとに `workflow_dispatch` でワークフローを起動する。Actions からは配備しないので、変更時は手元で実行する。
+定期実行は Cloudflare の Cron Trigger（`cron/worker.js`）だけが担う。毎時 7 分と 37 分に `workflow_dispatch` で
+ワークフローを起動する。GitHub の schedule は遅延・欠落が多かったため使っていない。
+Actions からは配備しないので、`cron/` を変えたら手元で実行する。
 
 ```bash
 npx wrangler deploy -c cron/wrangler.jsonc
 npx wrangler secret put GITHUB_TOKEN -c cron/wrangler.jsonc   # fine-grained PAT: このリポジトリの Actions (Read and write) のみ
 ```
 
-フォークして使う場合は `cron/worker.js` のリポジトリ名を書き換える。
+- **トークンの期限**: PAT が切れると更新が止まる。期限前に GitHub の Settings → Developer settings → Fine-grained tokens で
+  作り直し、上の `secret put` で登録し直す（再デプロイは不要）。
+- **止まったとき**: 画面の「データ更新」が古いままなら、Cloudflare ダッシュボードで Worker `vuln-watch-cron` の
+  ログを見る。起動に失敗した回は例外として記録される（401 はトークン切れ）。
+- フォークして使う場合は `cron/worker.js` のリポジトリ名を書き換える。
